@@ -1,0 +1,85 @@
+rules:
+  - id: mergemind.python.sql-injection-format
+    languages: [python]
+    severity: ERROR
+    message: SQL query appears to interpolate values directly; use a parameterized query.
+    metadata:
+      category: security
+    patterns:
+      - pattern-either:
+          - pattern: $CURSOR.execute($QUERY % ...)
+          - pattern: $CURSOR.execute($QUERY.format(...))
+          - pattern: $CURSOR.execute(f"...", ...)
+  - id: mergemind.python.sql-injection-concat
+    languages: [python]
+    severity: ERROR
+    message: SQL query concatenation may allow SQL injection; use a parameterized query.
+    metadata:
+      category: security
+    patterns:
+      - pattern: $CURSOR.execute($LEFT + $RIGHT)
+  - id: mergemind.python.unsafe-shell
+    languages: [python]
+    severity: WARNING
+    message: Shell execution with a constructed command can allow command injection.
+    metadata:
+      category: security
+    pattern-either:
+      - pattern: subprocess.$FUNC(..., shell=True, ...)
+      - pattern: os.system($COMMAND)
+  - id: mergemind.python.route-without-auth-marker
+    languages: [python]
+    severity: WARNING
+    message: Route has no recognized authentication decorator; review access control.
+    metadata:
+      category: security
+    patterns:
+      - pattern: |
+          @...route(...)
+          def $HANDLER(...):
+            ...
+      - pattern-not-inside: |
+          @...login_required
+          def $HANDLER(...):
+            ...
+      - pattern-not-inside: |
+          @...requires_auth
+          def $HANDLER(...):
+            ...
+  - id: mergemind.python.hardcoded-secret
+    languages: [python]
+    severity: ERROR
+    message: Possible hardcoded credential or API secret.
+    metadata:
+      category: secrets
+    patterns:
+      - pattern: $NAME = $VALUE
+      - metavariable-regex:
+          metavariable: $NAME
+          regex: (?i)(password|passwd|secret|api[_-]?key|access[_-]?token)
+      - metavariable-regex:
+          metavariable: $VALUE
+          regex: ^["'][^"']{8,}["']$
+  - id: mergemind.javascript.dangerously-set-html
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Untrusted data passed to dangerouslySetInnerHTML can cause XSS.
+    metadata:
+      category: security
+    pattern: dangerouslySetInnerHTML={{__html: $VALUE}}
+  - id: mergemind.javascript.eval
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: eval executes code dynamically and may introduce code injection.
+    metadata:
+      category: security
+    pattern: eval($VALUE)
+  - id: mergemind.java.sql-concatenation
+    languages: [java]
+    severity: ERROR
+    message: SQL query concatenation may allow SQL injection; use PreparedStatement parameters.
+    metadata:
+      category: security
+    patterns:
+      - pattern: $STMT.executeQuery($QUERY + $VALUE)
+      - pattern: $STMT.execute($QUERY + $VALUE)
