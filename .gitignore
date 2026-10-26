@@ -25,7 +25,12 @@ MANIFEST
 venv/
 ENV/
 env/
-.venv
+.venv*/
+
+# --- Local configuration & secrets ---
+.env
+.env.*
+!.env.example
 
 # --- IDE & Editors ---
 .vscode/
@@ -48,7 +53,11 @@ yarn-error.log*
 
 # --- Testing & Coverage ---
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
 .coverage
+.coverage.*
 htmlcov/
 .tox/
 
