@@ -2,42 +2,81 @@
 
 MergeMind is a local-first Git merge driver that classifies Python changes,
 automatically combines disjoint top-level edits, and sends overlapping edits to
-a local Ollama coding model. The current core supports Python; JavaScript and
-Java parsing, container verification, security scanning, persistence, and the
-web UI are not implemented in this checkout yet.
+a local Ollama coding model. The current core supports Python. Docker-based
+verification and Semgrep security scanning are implemented; JavaScript and Java
+parsing, persistence, and the web UI are not implemented in this checkout.
 
 ## Setup
 
-Use Python 3.10 or later. From the repository root, create and activate a
-virtual environment, then install the Python packages:
+Use Python 3.10 or later. The API can start without Ollama, Docker, or Semgrep,
+but merge requests require Docker and Semgrep, and semantic conflicts also
+require Ollama. The full workflow is best run in WSL2 because Semgrep does not
+support native Windows.
+
+### Windows: start the API only
+
+From PowerShell at the repository root:
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+python -m uvicorn backend.main:app --reload
 ```
 
-Install and start [Ollama](https://ollama.com/) for semantic conflicts, then
-download the configured model:
+Open `http://127.0.0.1:8000/docs` to view the API. This confirms the API starts;
+it does not mean conflict resolution is ready. On native Windows, Semgrep is
+not available from the requirements file, and Docker Desktop must be running
+and reachable for verification.
+
+### WSL2: full conflict-resolution setup
+
+Start Docker Desktop in Windows and enable WSL integration for the Ubuntu
+distribution. In PowerShell, check the installed distribution name:
 
 ```powershell
-ollama pull qwen2.5-coder:3b
+wsl --list --verbose
+wsl -d Ubuntu
+```
+
+If your distribution has a different name, replace `Ubuntu` with that name.
+Run the following commands in the Ubuntu terminal (not in PowerShell):
+
+```bash
+cd /mnt/d/Projects/MergeMind/mergemind
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip
+mkdir -p "$HOME/.venvs"
+python3 -m venv "$HOME/.venvs/mergemind"
+source "$HOME/.venvs/mergemind/bin/activate"
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install "semgrep>=1.70,<2.0"
+semgrep --version
+docker info
+docker build -f Dockerfile.verifier -t mergemind-verifier:py312 .
+python -m uvicorn backend.main:app --reload
+```
+
+If `docker info` cannot reach the server, check that Docker Desktop is running
+and WSL integration is enabled before building the image. The image build may
+take several minutes because it installs the project requirements and pytest.
+Keep the API terminal open. For semantic conflicts, install Ollama in WSL if
+needed using the [official Linux instructions](https://ollama.com/download/linux),
+then start its server in a second Ubuntu terminal:
+
+```bash
 ollama serve
 ```
 
-Phase 2 also requires a running Docker Desktop/Engine and a local Semgrep CLI.
-Build the isolated verifier image once after Docker has started:
+In a third Ubuntu terminal, download the model:
 
-```powershell
-python -m pip install -r requirements.txt
-docker info
-docker build -f Dockerfile.verifier -t mergemind-verifier:py312 .
+```bash
+ollama pull qwen2.5-coder:3b
 ```
 
-The requirements install the Semgrep CLI in the active Python environment;
-verify it with `\.\venv\Scripts\semgrep.exe --version` (or `semgrep --version`
-after activating the venv). The container build may take several minutes since
-it installs the project requirements and pytest.
+If Ollama is already running, do not start a second server.
+Open `http://127.0.0.1:8000/docs` from your browser.
 
 The verifier copies project source and test files into a network-disabled,
 read-only container with resource limits. Set `MERGEMIND_DOCKER_IMAGE` to use a
@@ -50,6 +89,8 @@ Tree-sitter's Python grammar is used for parsing when installed. The Python
 standard library AST provides source node extraction and a fallback parser.
 
 ## Start the API
+
+With the virtual environment activated and dependencies installed, run:
 
 ```powershell
 python -m uvicorn backend.main:app --reload
